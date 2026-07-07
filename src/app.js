@@ -1,10 +1,12 @@
 import { getAllNotes, saveNote, deleteNote } from './storage/notesRepository.js';
 import { createNote, updateNote, isValidNote } from './models/note.js';
 import { buildIndex } from './core/index.js';
-import { search } from './core/search.js';
+import { search, explainSearch } from './core/search.js';
 import { renderNoteList } from './ui/noteList.js';
 import { renderNoteEditor } from './ui/noteEditor.js';
 import { renderSearchBar } from './ui/searchBar.js';
+import { renderSearchInternals } from './ui/searchInternals.js';
+import { initSidebarResize } from './ui/sidebarResize.js';
 
 /**
  * App state lives here as module-level variables. This is the "singleton"
@@ -17,10 +19,14 @@ let notes = [];
 let searchIndex = new Map();
 let editingNoteId = null; // null = not editing, 'new' = creating, otherwise an existing note's id
 let activeQuery = ''; // current search box contents, '' = no filter
+let internalsVisible = false; // "search internals" demo panel, off by default
 
 const listContainer = document.getElementById('note-list');
 const editorContainer = document.getElementById('note-editor');
+const emptyStateEl = document.getElementById('empty-state');
 const searchContainer = document.getElementById('search-bar');
+const internalsContainer = document.getElementById('search-internals');
+const internalsToggleBtn = document.getElementById('internals-toggle-btn');
 const newNoteBtn = document.getElementById('new-note-btn');
 
 /**
@@ -41,8 +47,15 @@ function getVisibleNotes() {
     return search(activeQuery, searchIndex, notes).map((result) => result.note);
 }
 
+function refreshInternalsPanel() {
+    if (!internalsVisible) return;
+    const explanation = explainSearch(activeQuery, searchIndex, notes);
+    renderSearchInternals(internalsContainer, explanation);
+}
+
 function refreshList() {
     renderNoteList(listContainer, getVisibleNotes(), {
+        activeNoteId: editingNoteId,
         onSelect: (id) => {
             editingNoteId = id;
             showEditor();
@@ -56,12 +69,14 @@ function refreshList() {
                 hideEditor();
             }
             refreshList();
+            refreshInternalsPanel();
         },
     });
 }
 
 function showEditor() {
     editorContainer.classList.remove('hidden');
+    emptyStateEl.classList.add('hidden');
     const noteBeingEdited =
         editingNoteId && editingNoteId !== 'new'
             ? notes.find((n) => n.id === editingNoteId)
@@ -85,10 +100,12 @@ function showEditor() {
             editingNoteId = null;
             hideEditor();
             refreshList();
+            refreshInternalsPanel();
         },
         onCancel: () => {
             editingNoteId = null;
             hideEditor();
+            refreshList();
         },
     });
 }
@@ -96,6 +113,7 @@ function showEditor() {
 function hideEditor() {
     editorContainer.classList.add('hidden');
     editorContainer.innerHTML = '';
+    emptyStateEl.classList.remove('hidden');
 }
 
 newNoteBtn.addEventListener('click', () => {
@@ -107,10 +125,37 @@ renderSearchBar(searchContainer, {
     onSearch: (query) => {
         activeQuery = query;
         refreshList();
+
+        // If the query matches nothing, an existing open note is no longer
+        // part of the result set, keeping it open is misleading (it looks
+        // like it's still "in" the search). Clear it back to the empty state.
+        // Scoped to existing notes only, an in-progress "new note" draft is
+        // left alone so a zero-match search doesn't silently discard unsaved
+        // input.
+        const hasResults = getVisibleNotes().length > 0;
+        const isEditingExistingNote = editingNoteId && editingNoteId !== 'new';
+        if (query.trim() !== '' && !hasResults && isEditingExistingNote) {
+            editingNoteId = null;
+            hideEditor();
+            refreshList();
+        }
+
+        refreshInternalsPanel();
     },
+});
+
+internalsToggleBtn.addEventListener('click', () => {
+    internalsVisible = !internalsVisible;
+    internalsToggleBtn.textContent = internalsVisible
+        ? 'Hide search internals'
+        : 'Show search internals';
+    internalsContainer.classList.toggle('hidden', !internalsVisible);
+    refreshInternalsPanel();
 });
 
 // Initial load
 notes = getAllNotes();
 rebuildIndex();
 refreshList();
+
+initSidebarResize(document.getElementById('sidebar'), document.getElementById('resize-handle'));

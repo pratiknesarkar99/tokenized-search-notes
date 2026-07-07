@@ -9,16 +9,30 @@
 </head>
 
 <body>
-    <header>
-        <h1>Notes</h1>
-        <button id="new-note-btn">+ New Note</button>
-    </header>
+    <div class="app-shell">
+        <header class="app-header">
+            <h1>Notes</h1>
+            <button id="new-note-btn">+ New Note</button>
+        </header>
 
-    <main>
-        <div id="search-bar"></div>
-        <div id="note-list"></div>
-        <div id="note-editor" class="hidden"></div>
-    </main>
+        <div class="app-body">
+            <aside class="sidebar" id="sidebar">
+                <div id="search-bar"></div>
+                <button id="internals-toggle-btn" class="internals-toggle">Show search internals</button>
+                <div id="note-list" class="note-list-scroll"></div>
+            </aside>
+
+            <div class="resize-handle" id="resize-handle"></div>
+
+            <main class="content-pane">
+                <div id="search-internals" class="internals-panel hidden"></div>
+                <div id="note-editor" class="hidden"></div>
+                <div id="empty-state" class="empty-state-main">
+                    <p>Select a note from the list, or create a new one.</p>
+                </div>
+            </main>
+        </div>
+    </div>
 
     <script type="module" src="src/app.js"></script>
 </body>

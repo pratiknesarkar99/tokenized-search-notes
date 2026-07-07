@@ -6,7 +6,15 @@
  * @param {Array<object>} notes
  * @param {{ onSelect: (id: string) => void, onDelete: (id: string) => void }} handlers
  */
-export function renderNoteList(container, notes, { onSelect, onDelete }) {
+/**
+ * Renders the list of notes into a container element.
+ * No framework, direct DOM manipulation, kept deliberately simple for MVP.
+ *
+ * @param {HTMLElement} container
+ * @param {Array<object>} notes
+ * @param {{ onSelect: (id: string) => void, onDelete: (id: string) => void, activeNoteId?: string|null }} handlers
+ */
+export function renderNoteList(container, notes, { onSelect, onDelete, activeNoteId = null }) {
     container.innerHTML = '';
 
     if (notes.length === 0) {
@@ -21,7 +29,7 @@ export function renderNoteList(container, notes, { onSelect, onDelete }) {
 
     for (const note of sorted) {
         const item = document.createElement('div');
-        item.className = 'note-item';
+        item.className = note.id === activeNoteId ? 'note-item active' : 'note-item';
         item.dataset.noteId = note.id;
 
         const title = document.createElement('h3');

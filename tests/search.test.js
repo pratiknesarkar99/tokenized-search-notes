@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildIndex } from '../src/core/index.js';
-import { search } from '../src/core/search.js';
+import { search, explainSearch } from '../src/core/search.js';
 
 const note = (id, title, body, updatedAt = 0) => ({ id, title, body, updatedAt });
 
@@ -91,5 +91,56 @@ describe('search', () => {
         const results = search('milk', index, staleNotes);
 
         expect(results).toEqual([]);
+    });
+});
+
+describe('explainSearch', () => {
+    it('returns the tokenized query alongside results', () => {
+        const notes = [note('1', 'Grocery List', 'milk eggs')];
+        const index = buildIndex(notes);
+        const { tokens } = explainSearch('Milk Eggs', index, notes);
+
+        expect(tokens).toEqual(['milk', 'eggs']);
+    });
+
+    it('returns per-token match breakdown for each result', () => {
+        const notes = [note('1', 'todo', 'call mom call dad call sister')];
+        const index = buildIndex(notes);
+        const { results } = explainSearch('call', index, notes);
+
+        expect(results[0].matches).toEqual([{ token: 'call', freq: 3 }]);
+        expect(results[0].score).toBe(3);
+    });
+
+    it('breaks down multiple matched tokens separately per note', () => {
+        const notes = [note('1', 'Recipe', 'milk and eggs and flour')];
+        const index = buildIndex(notes);
+        const { results } = explainSearch('milk eggs', index, notes);
+
+        expect(results[0].matches).toContainEqual({ token: 'milk', freq: 1 });
+        expect(results[0].matches).toContainEqual({ token: 'eggs', freq: 1 });
+        expect(results[0].score).toBe(2);
+    });
+
+    it('produces results identical (ignoring matches) to search() for the same input', () => {
+        const notes = [
+            note('1', 'todo', 'call mom call dad', 1000),
+            note('2', 'todo', 'call the bank', 2000),
+        ];
+        const index = buildIndex(notes);
+
+        const plainResults = search('call', index, notes);
+        const { results: explainedResults } = explainSearch('call', index, notes);
+
+        expect(explainedResults.map(({ note, score }) => ({ note, score }))).toEqual(
+            plainResults
+        );
+    });
+
+    it('returns empty tokens and results for an empty query', () => {
+        const notes = [note('1', 'Grocery List', 'milk eggs')];
+        const index = buildIndex(notes);
+
+        expect(explainSearch('', index, notes)).toEqual({ tokens: [], results: [] });
     });
 });
