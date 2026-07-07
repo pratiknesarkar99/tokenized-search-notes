@@ -1,0 +1,14 @@
+{
+    "name": "notes-app",
+    "version": "0.1.0",
+    "type": "module",
+    "description": "Notes app with client-side full-text search (inverted index, custom ranking).",
+    "scripts": {
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "serve": "npx serve ."
+    },
+    "devDependencies": {
+        "vitest": "^2.1.8"
+    }
+}
