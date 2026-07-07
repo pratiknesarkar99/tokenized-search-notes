@@ -2,8 +2,10 @@ import { getAllNotes, saveNote, deleteNote } from './storage/notesRepository.js'
 import { createNote, updateNote, isValidNote } from './models/note.js';
 import { buildIndex } from './core/index.js';
 import { search, explainSearch } from './core/search.js';
+import { tokenize } from './core/tokenizer.js';
 import { renderNoteList } from './ui/noteList.js';
 import { renderNoteEditor } from './ui/noteEditor.js';
+import { renderNoteViewer } from './ui/noteViewer.js';
 import { renderSearchBar } from './ui/searchBar.js';
 import { renderSearchInternals } from './ui/searchInternals.js';
 import { initSidebarResize } from './ui/sidebarResize.js';
@@ -18,8 +20,10 @@ import { initSidebarResize } from './ui/sidebarResize.js';
 let notes = [];
 let searchIndex = new Map();
 let editingNoteId = null; // null = not editing, 'new' = creating, otherwise an existing note's id
+let viewMode = 'edit'; // 'edit' or 'preview'. preview = read-only + highlighted, only used for existing notes opened from an active search
 let activeQuery = ''; // current search box contents, '' = no filter
 let internalsVisible = false; // "search internals" demo panel, off by default
+let pendingScrollFraction = null; // set when switching preview -> edit, applied to the new textarea once rendered
 
 const listContainer = document.getElementById('note-list');
 const editorContainer = document.getElementById('note-editor');
@@ -58,7 +62,8 @@ function refreshList() {
         activeNoteId: editingNoteId,
         onSelect: (id) => {
             editingNoteId = id;
-            showEditor();
+            viewMode = activeQuery.trim() !== '' ? 'preview' : 'edit';
+            showActiveNote();
         },
         onDelete: (id) => {
             deleteNote(id);
@@ -74,13 +79,26 @@ function refreshList() {
     });
 }
 
-function showEditor() {
+function showActiveNote() {
     editorContainer.classList.remove('hidden');
     emptyStateEl.classList.add('hidden');
-    const noteBeingEdited =
-        editingNoteId && editingNoteId !== 'new'
-            ? notes.find((n) => n.id === editingNoteId)
-            : null;
+
+    const isNewNote = editingNoteId === 'new';
+    const noteBeingEdited = editingNoteId && !isNewNote
+        ? notes.find((n) => n.id === editingNoteId)
+        : null;
+
+    if (!isNewNote && viewMode === 'preview' && noteBeingEdited) {
+        const tokens = tokenize(activeQuery);
+        renderNoteViewer(editorContainer, noteBeingEdited, tokens, {
+            onEdit: (scrollFraction) => {
+                viewMode = 'edit';
+                pendingScrollFraction = scrollFraction;
+                showActiveNote();
+            },
+        });
+        return;
+    }
 
     renderNoteEditor(editorContainer, noteBeingEdited, {
         onSave: ({ title, body }) => {
@@ -108,6 +126,15 @@ function showEditor() {
             refreshList();
         },
     });
+
+    if (pendingScrollFraction !== null) {
+        const textarea = editorContainer.querySelector('.body-input');
+        if (textarea) {
+            const scrollable = textarea.scrollHeight - textarea.clientHeight;
+            textarea.scrollTop = pendingScrollFraction * scrollable;
+        }
+        pendingScrollFraction = null;
+    }
 }
 
 function hideEditor() {
@@ -118,7 +145,8 @@ function hideEditor() {
 
 newNoteBtn.addEventListener('click', () => {
     editingNoteId = 'new';
-    showEditor();
+    viewMode = 'edit';
+    showActiveNote();
 });
 
 renderSearchBar(searchContainer, {
@@ -138,6 +166,10 @@ renderSearchBar(searchContainer, {
             editingNoteId = null;
             hideEditor();
             refreshList();
+        } else if (isEditingExistingNote && viewMode === 'preview') {
+            // Query changed but the note still matches (or user is still typing),
+            // re-render so the highlighted terms stay in sync with the box.
+            showActiveNote();
         }
 
         refreshInternalsPanel();

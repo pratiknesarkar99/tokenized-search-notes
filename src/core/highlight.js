@@ -1,0 +1,62 @@
+/**
+ * Splits text into segments marking which parts match any of the given
+ * search tokens, so the UI layer can render highlighted vs plain text
+ * without ever touching innerHTML (avoids HTML injection from note
+ * content entirely, everything is rendered via textContent/createTextNode
+ * downstream).
+ *
+ * Matching is case-insensitive and whole-word (so searching "cat" doesn't
+ * highlight "category"), which mirrors how tokenize() already treats
+ * words elsewhere in the app.
+ *
+ * @param {string} text
+ * @param {string[]} tokens
+ * @returns {Array<{ text: string, highlighted: boolean }>}
+ */
+export function highlightSegments(text, tokens) {
+    if (!text || tokens.length === 0) {
+        return [{ text: text || '', highlighted: false }];
+    }
+
+    const pattern = new RegExp(`\\b(${tokens.map(escapeRegex).join('|')})\\b`, 'gi');
+    const segments = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = pattern.exec(text)) !== null) {
+        if (match.index > lastIndex) {
+            segments.push({ text: text.slice(lastIndex, match.index), highlighted: false });
+        }
+        segments.push({ text: match[0], highlighted: true });
+        lastIndex = pattern.lastIndex;
+
+        // Guard against zero-width matches causing an infinite loop.
+        if (match.index === pattern.lastIndex) {
+            pattern.lastIndex++;
+        }
+    }
+
+    if (lastIndex < text.length) {
+        segments.push({ text: text.slice(lastIndex), highlighted: false });
+    }
+
+    return segments;
+}
+
+function escapeRegex(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Counts total match occurrences of any token in text.
+ * Built from the same matching rule as highlightSegments (whole-word,
+ * case-insensitive), so the badge count and the actual highlighted
+ * segments can never disagree with each other.
+ *
+ * @param {string} text
+ * @param {string[]} tokens
+ * @returns {number}
+ */
+export function countMatches(text, tokens) {
+    return highlightSegments(text, tokens).filter((segment) => segment.highlighted).length;
+}
