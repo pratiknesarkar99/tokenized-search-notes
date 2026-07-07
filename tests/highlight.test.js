@@ -28,10 +28,20 @@ describe('highlightSegments', () => {
         ]);
     });
 
-    it('matches whole words only, not substrings', () => {
-        const segments = highlightSegments('categorize the cat', ['cat']);
+    it('matches word prefixes anchored at a word boundary, not substrings mid-word', () => {
+        // "cat" is a genuine prefix of "categorize" (boundary right before it),
+        // so it highlights the whole word, that's the point of prefix matching.
+        // It does NOT match inside "concatenate" though, there's no word
+        // boundary at that position ("con" directly precedes "cat").
+        const segments = highlightSegments('concatenate the categorize cat', ['cat']);
         const highlighted = segments.filter((s) => s.highlighted).map((s) => s.text);
-        expect(highlighted).toEqual(['cat']);
+        expect(highlighted).toEqual(['categorize', 'cat']);
+    });
+
+    it('highlights the full matched word, not just the typed prefix', () => {
+        const segments = highlightSegments('buy milkshake today', ['milk']);
+        const highlighted = segments.filter((s) => s.highlighted).map((s) => s.text);
+        expect(highlighted).toEqual(['milkshake']);
     });
 
     it('highlights multiple distinct tokens in the same text', () => {

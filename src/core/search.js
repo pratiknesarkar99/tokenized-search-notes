@@ -20,9 +20,20 @@ const DEFAULT_BODY_WEIGHT = 1;
  * heuristic, not derived from any formal model, tunable via the weights
  * argument if it ever needs adjusting.
  *
- * Still no TF-IDF: at single-user, small-corpus scale, normalizing
- * against document frequency buys little and adds real complexity.
- * Ties broken by recency (most recently updated note wins).
+ * Matching is by **word prefix**, not exact token only: a query token
+ * "mil" matches any indexed token that starts with "mil" ("milk",
+ * "military", etc.), enabling search-as-you-type. This is a real change
+ * from exact-token matching, not an addition on top of it. "cat" now
+ * matches "category", where it previously wouldn't have. Still anchored
+ * to word starts though, not arbitrary substrings: "cat" will not match
+ * "concatenate" (no word boundary at that position in the string).
+ *
+ * Implementation: a linear scan over the index's vocabulary for each
+ * query token, checking `.startsWith()`. Fine at this project's realistic
+ * scale (at most a few thousand unique tokens), a trie/prefix-tree would
+ * be the right structure if this needed to scale much further, deferred
+ * as unnecessary complexity for now, same reasoning as the other
+ * scale-related MVP calls in this project.
  *
  * @param {string} query
  * @param {Map<string, Map<string, { titleFreq: number, bodyFreq: number }>>} index
@@ -50,19 +61,20 @@ export function explainSearch(
 
     const matchesByNote = new Map(); // noteId -> [{ token, titleFreq, bodyFreq }]
 
-    for (const token of tokens) {
-        const postings = index.get(token);
-        if (!postings) continue;
+    for (const queryToken of tokens) {
+        for (const indexToken of findTokensWithPrefix(index, queryToken)) {
+            const postings = index.get(indexToken);
 
-        for (const [noteId, freqs] of postings) {
-            if (!matchesByNote.has(noteId)) {
-                matchesByNote.set(noteId, []);
+            for (const [noteId, freqs] of postings) {
+                if (!matchesByNote.has(noteId)) {
+                    matchesByNote.set(noteId, []);
+                }
+                matchesByNote.get(noteId).push({
+                    token: indexToken, // the actual matched word, not the typed prefix
+                    titleFreq: freqs.titleFreq,
+                    bodyFreq: freqs.bodyFreq,
+                });
             }
-            matchesByNote.get(noteId).push({
-                token,
-                titleFreq: freqs.titleFreq,
-                bodyFreq: freqs.bodyFreq,
-            });
         }
     }
 
@@ -83,6 +95,16 @@ export function explainSearch(
         });
 
     return { tokens, results };
+}
+
+function findTokensWithPrefix(index, prefix) {
+    const matches = [];
+    for (const indexToken of index.keys()) {
+        if (indexToken.startsWith(prefix)) {
+            matches.push(indexToken);
+        }
+    }
+    return matches;
 }
 
 /**

@@ -5,9 +5,14 @@
  * content entirely, everything is rendered via textContent/createTextNode
  * downstream).
  *
- * Matching is case-insensitive and whole-word (so searching "cat" doesn't
- * highlight "category"), which mirrors how tokenize() already treats
- * words elsewhere in the app.
+ * Matching is case-insensitive and **word-prefix** based, mirroring
+ * search.js's matching rule exactly: a token "mil" highlights the whole
+ * word "milk" (the entire matched word is highlighted, not just the
+ * typed prefix), anchored to word starts so "cat" still won't highlight
+ * inside "concatenate". This has to stay in sync with how search.js
+ * matches, otherwise a note could show up as a search result with
+ * nothing actually highlighted inside it, or a match count that
+ * disagrees with what's visibly marked.
  *
  * @param {string} text
  * @param {string[]} tokens
@@ -18,7 +23,7 @@ export function highlightSegments(text, tokens) {
         return [{ text: text || '', highlighted: false }];
     }
 
-    const pattern = new RegExp(`\\b(${tokens.map(escapeRegex).join('|')})\\b`, 'gi');
+    const pattern = new RegExp(`\\b(?:${tokens.map(escapeRegex).join('|')})\\w*`, 'gi');
     const segments = [];
     let lastIndex = 0;
     let match;

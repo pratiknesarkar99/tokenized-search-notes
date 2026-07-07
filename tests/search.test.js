@@ -121,6 +121,34 @@ describe('search', () => {
 
         expect(results).toEqual([]);
     });
+
+    it('matches via word prefix, not exact token only', () => {
+        const notes = [note('1', 'Shopping', 'buy milkshake mix')];
+        const index = buildIndex(notes);
+        const results = search('milk', index, notes);
+
+        expect(results).toHaveLength(1);
+        expect(results[0].note.id).toBe('1');
+    });
+
+    it('does not match mid-word, only word-start prefixes', () => {
+        const notes = [note('1', 'Notes', 'we need to concatenate these files')];
+        const index = buildIndex(notes);
+        const results = search('cat', index, notes);
+
+        expect(results).toEqual([]);
+    });
+
+    it('sums matches across multiple index tokens sharing the same query prefix', () => {
+        const notes = [note('1', 'Shopping', 'milk and milkshake mix')];
+        const index = buildIndex(notes);
+        const { results } = explainSearch('milk', index, notes);
+
+        expect(results[0].matches).toContainEqual({ token: 'milk', titleFreq: 0, bodyFreq: 1 });
+        expect(results[0].matches).toContainEqual({ token: 'milkshake', titleFreq: 0, bodyFreq: 1 });
+        // default weights: (0*3+1*1) + (0*3+1*1) = 2
+        expect(results[0].score).toBe(2);
+    });
 });
 
 describe('explainSearch', () => {
