@@ -1,15 +1,15 @@
 /**
  * Renders a "search internals" panel that shows how the ranking was
  * actually computed for the current query: the tokenized query and,
- * per matching note, which tokens matched with what frequency, and the
- * resulting score.
+ * per matching note, which tokens matched with what title/body frequency
+ * breakdown, and the resulting weighted score.
  *
  * This exists purely as a portfolio/demo aid, it's not something a real
  * end user of a notes app would want visible by default. It's toggled
  * on/off and hidden by default.
  *
  * @param {HTMLElement} container
- * @param {{ tokens: string[], results: Array<{ note: object, score: number, matches: Array<{ token: string, freq: number }> }> }} explanation
+ * @param {{ tokens: string[], results: Array<{ note: object, score: number, matches: Array<{ token: string, titleFreq: number, bodyFreq: number }> }> }} explanation
  */
 export function renderSearchInternals(container, explanation) {
     container.innerHTML = '';
@@ -39,11 +39,16 @@ export function renderSearchInternals(container, explanation) {
         return;
     }
 
+    const legend = document.createElement('p');
+    legend.className = 'internals-hint';
+    legend.textContent = 'Title matches are weighted 3x, body matches 1x.';
+    container.appendChild(legend);
+
     const table = document.createElement('table');
     table.className = 'internals-table';
 
     const thead = document.createElement('thead');
-    thead.innerHTML = '<tr><th>Note</th><th>Matched tokens (freq)</th><th>Score</th></tr>';
+    thead.innerHTML = '<tr><th>Note</th><th>Matched tokens (title×, body×)</th><th>Score</th></tr>';
     table.appendChild(thead);
 
     const tbody = document.createElement('tbody');
@@ -55,7 +60,7 @@ export function renderSearchInternals(container, explanation) {
 
         const matchesCell = document.createElement('td');
         matchesCell.innerHTML = result.matches
-            .map((m) => `<code>${m.token}</code>&nbsp;(${m.freq})`)
+            .map((m) => `<code>${m.token}</code>&nbsp;(title×${m.titleFreq}, body×${m.bodyFreq})`)
             .join(', ');
 
         const scoreCell = document.createElement('td');

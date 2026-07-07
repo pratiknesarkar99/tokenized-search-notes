@@ -1,5 +1,8 @@
 import { tokenize } from './tokenizer.js';
 
+const DEFAULT_TITLE_WEIGHT = 3;
+const DEFAULT_BODY_WEIGHT = 1;
+
 /**
  * Runs a query against the index and returns full scoring detail per note,
  * not just the final score. This is the shared computation both `search()`
@@ -7,38 +10,59 @@ import { tokenize } from './tokenizer.js';
  * panel are built on, so there's exactly one place that implements ranking
  * logic, not two copies that could drift out of sync.
  *
- * MVP scoring (deliberate, documented in README):
- * - score = sum of term frequencies across all matched query tokens
- * - no title/body weighting yet (index doesn't track that split, see index.js)
- * - no TF-IDF: at single-user, small-corpus scale, normalizing against
- *   document frequency buys little and adds real complexity
- * - ties broken by recency (most recently updated note wins)
+ * Scoring: score = sum over matched tokens of
+ *   (titleFreq * titleWeight) + (bodyFreq * bodyWeight)
+ *
+ * Title matches are weighted higher than body matches by default (3:1).
+ * A note titled "Milk Run" ranks above a note that merely mentions "milk"
+ * once in a long body, even though both have one raw occurrence, that's
+ * the whole point of this layer. The 3:1 ratio is a reasonable starting
+ * heuristic, not derived from any formal model, tunable via the weights
+ * argument if it ever needs adjusting.
+ *
+ * Still no TF-IDF: at single-user, small-corpus scale, normalizing
+ * against document frequency buys little and adds real complexity.
+ * Ties broken by recency (most recently updated note wins).
  *
  * @param {string} query
- * @param {Map<string, Map<string, number>>} index
+ * @param {Map<string, Map<string, { titleFreq: number, bodyFreq: number }>>} index
  * @param {Array<{id: string, updatedAt: number}>} notes
+ * @param {{ titleWeight?: number, bodyWeight?: number }} [weights]
  * @returns {{
  *   tokens: string[],
- *   results: Array<{ note: object, score: number, matches: Array<{ token: string, freq: number }> }>
+ *   results: Array<{
+ *     note: object,
+ *     score: number,
+ *     matches: Array<{ token: string, titleFreq: number, bodyFreq: number }>
+ *   }>
  * }}
  */
-export function explainSearch(query, index, notes) {
+export function explainSearch(
+    query,
+    index,
+    notes,
+    { titleWeight = DEFAULT_TITLE_WEIGHT, bodyWeight = DEFAULT_BODY_WEIGHT } = {}
+) {
     const tokens = tokenize(query);
     if (tokens.length === 0) {
         return { tokens: [], results: [] };
     }
 
-    const matchesByNote = new Map(); // noteId -> [{ token, freq }]
+    const matchesByNote = new Map(); // noteId -> [{ token, titleFreq, bodyFreq }]
 
     for (const token of tokens) {
         const postings = index.get(token);
         if (!postings) continue;
 
-        for (const [noteId, freq] of postings) {
+        for (const [noteId, freqs] of postings) {
             if (!matchesByNote.has(noteId)) {
                 matchesByNote.set(noteId, []);
             }
-            matchesByNote.get(noteId).push({ token, freq });
+            matchesByNote.get(noteId).push({
+                token,
+                titleFreq: freqs.titleFreq,
+                bodyFreq: freqs.bodyFreq,
+            });
         }
     }
 
@@ -46,7 +70,10 @@ export function explainSearch(query, index, notes) {
 
     const results = [...matchesByNote.entries()]
         .map(([noteId, matches]) => {
-            const score = matches.reduce((sum, m) => sum + m.freq, 0);
+            const score = matches.reduce(
+                (sum, m) => sum + m.titleFreq * titleWeight + m.bodyFreq * bodyWeight,
+                0
+            );
             return { note: noteById.get(noteId), score, matches };
         })
         .filter((result) => result.note !== undefined) // guard against stale index entries
@@ -64,12 +91,13 @@ export function explainSearch(query, index, notes) {
  * used by the real UI where you just want the ranked note list.
  *
  * @param {string} query
- * @param {Map<string, Map<string, number>>} index
+ * @param {Map<string, Map<string, { titleFreq: number, bodyFreq: number }>>} index
  * @param {Array<{id: string, updatedAt: number}>} notes
+ * @param {{ titleWeight?: number, bodyWeight?: number }} [weights]
  * @returns {Array<{note: object, score: number}>}
  */
-export function search(query, index, notes) {
-    return explainSearch(query, index, notes).results.map(({ note, score }) => ({
+export function search(query, index, notes, weights) {
+    return explainSearch(query, index, notes, weights).results.map(({ note, score }) => ({
         note,
         score,
     }));

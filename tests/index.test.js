@@ -4,28 +4,35 @@ import { buildIndex, removeNoteFromIndex } from '../src/core/index.js';
 const note = (id, title, body) => ({ id, title, body });
 
 describe('buildIndex', () => {
-    it('indexes a single note', () => {
+    it('indexes a single note, tracking title and body frequency separately', () => {
         const notes = [note('1', 'Grocery List', 'milk eggs bread')];
         const index = buildIndex(notes);
 
-        expect(index.get('milk').get('1')).toBe(1);
-        expect(index.get('eggs').get('1')).toBe(1);
-        expect(index.get('bread').get('1')).toBe(1);
+        expect(index.get('milk').get('1')).toEqual({ titleFreq: 0, bodyFreq: 1 });
+        expect(index.get('eggs').get('1')).toEqual({ titleFreq: 0, bodyFreq: 1 });
+        expect(index.get('bread').get('1')).toEqual({ titleFreq: 0, bodyFreq: 1 });
     });
 
-    it('combines title and body tokens into one frequency count', () => {
+    it('tracks title and body frequency separately for a token appearing in both', () => {
         const notes = [note('1', 'milk run', 'buy milk and eggs')];
         const index = buildIndex(notes);
 
-        // "milk" appears once in title, once in body -> combined count of 2
-        expect(index.get('milk').get('1')).toBe(2);
+        // "milk" appears once in the title and once in the body, tracked independently.
+        expect(index.get('milk').get('1')).toEqual({ titleFreq: 1, bodyFreq: 1 });
     });
 
-    it('tracks term frequency per note when a token repeats', () => {
+    it('tracks term frequency per note when a token repeats within the body', () => {
         const notes = [note('1', 'todo', 'call mom call dad call sister')];
         const index = buildIndex(notes);
 
-        expect(index.get('call').get('1')).toBe(3);
+        expect(index.get('call').get('1')).toEqual({ titleFreq: 0, bodyFreq: 3 });
+    });
+
+    it('tracks term frequency per note when a token repeats within the title', () => {
+        const notes = [note('1', 'call call call', 'unrelated body text')];
+        const index = buildIndex(notes);
+
+        expect(index.get('call').get('1')).toEqual({ titleFreq: 3, bodyFreq: 0 });
     });
 
     it('indexes multiple notes sharing the same token separately', () => {
@@ -36,8 +43,8 @@ describe('buildIndex', () => {
         const index = buildIndex(notes);
 
         const milkPostings = index.get('milk');
-        expect(milkPostings.get('1')).toBe(1);
-        expect(milkPostings.get('2')).toBe(1);
+        expect(milkPostings.get('1')).toEqual({ titleFreq: 0, bodyFreq: 1 });
+        expect(milkPostings.get('2')).toEqual({ titleFreq: 0, bodyFreq: 1 });
         expect(milkPostings.size).toBe(2);
     });
 
@@ -50,7 +57,7 @@ describe('buildIndex', () => {
         const notes = [note('1', '', 'just body text')];
         const index = buildIndex(notes);
 
-        expect(index.get('just').get('1')).toBe(1);
+        expect(index.get('just').get('1')).toEqual({ titleFreq: 0, bodyFreq: 1 });
         expect(index.has('')).toBe(false);
     });
 });
@@ -83,6 +90,6 @@ describe('removeNoteFromIndex', () => {
         const index = buildIndex(notes);
 
         expect(() => removeNoteFromIndex(index, 'nonexistent')).not.toThrow();
-        expect(index.get('milk').get('1')).toBe(1);
+        expect(index.get('milk').get('1')).toEqual({ titleFreq: 0, bodyFreq: 1 });
     });
 });
