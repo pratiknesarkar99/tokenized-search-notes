@@ -1,4 +1,5 @@
 import { highlightSegments } from '../core/highlight.js';
+import { appendHighlightedSegments } from './highlightRenderer.js';
 
 /**
  * Renders a read-only view of a note with matched search terms
@@ -19,9 +20,9 @@ import { highlightSegments } from '../core/highlight.js';
  * (a transparent textarea overlaid pixel-perfectly on a styled div) is
  * real complexity for little payoff in a single-user notes app.
  *
- * Uses textContent/createTextNode throughout, never innerHTML, so note
- * content (user-authored, could contain anything) can never be
- * interpreted as HTML.
+ * Uses textContent/createTextNode throughout (via appendHighlightedSegments),
+ * never innerHTML, so note content (user-authored, could contain anything)
+ * can never be interpreted as HTML.
  *
  * @param {HTMLElement} container
  * @param {object} note
@@ -31,17 +32,19 @@ import { highlightSegments } from '../core/highlight.js';
 export function renderNoteViewer(container, note, tokens, { onEdit }) {
     container.innerHTML = '';
 
-    const marks = []; // all <mark> elements, in document order (title first, then body)
-
     const titleEl = document.createElement('h2');
     titleEl.className = 'viewer-title';
-    appendHighlighted(titleEl, note.title || '(untitled)', tokens, marks);
+    appendHighlightedSegments(titleEl, highlightSegments(note.title || '(untitled)', tokens));
 
     const bodyEl = document.createElement('div');
     bodyEl.className = 'viewer-body';
     bodyEl.tabIndex = 0; // focusable so ArrowUp/ArrowDown can navigate matches
-    appendHighlighted(bodyEl, note.body, tokens, marks);
+    appendHighlightedSegments(bodyEl, highlightSegments(note.body, tokens));
 
+    // Marks in document order: title first, then body. Collected via
+    // querySelectorAll after appending, since appendHighlightedSegments is a
+    // shared helper that doesn't know or care about match navigation.
+    const marks = [...titleEl.querySelectorAll('mark'), ...bodyEl.querySelectorAll('mark')];
     const totalMatches = marks.length;
     let currentIndex = -1;
 
@@ -114,17 +117,4 @@ export function renderNoteViewer(container, note, tokens, { onEdit }) {
             setActiveMatch(currentIndex - 1);
         }
     });
-}
-
-function appendHighlighted(el, text, tokens, marksCollector) {
-    for (const segment of highlightSegments(text, tokens)) {
-        if (segment.highlighted) {
-            const mark = document.createElement('mark');
-            mark.textContent = segment.text;
-            el.appendChild(mark);
-            marksCollector.push(mark);
-        } else {
-            el.appendChild(document.createTextNode(segment.text));
-        }
-    }
 }

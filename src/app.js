@@ -60,6 +60,7 @@ function refreshInternalsPanel() {
 function refreshList() {
     renderNoteList(listContainer, getVisibleNotes(), {
         activeNoteId: editingNoteId,
+        tokens: tokenize(activeQuery),
         onSelect: (id) => {
             editingNoteId = id;
             viewMode = activeQuery.trim() !== '' ? 'preview' : 'edit';

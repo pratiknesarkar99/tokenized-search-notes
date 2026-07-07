@@ -60,3 +60,56 @@ function escapeRegex(str) {
 export function countMatches(text, tokens) {
     return highlightSegments(text, tokens).filter((segment) => segment.highlighted).length;
 }
+
+/**
+ * Extracts a short window of text centered on the first match, for use as
+ * a search-result preview (the "Google snippet" pattern), instead of
+ * blindly truncating the first N characters regardless of where the
+ * match actually falls.
+ *
+ * Falls back to a plain leading slice (no centering) when there are no
+ * tokens or no match is found, same behavior as before this existed.
+ *
+ * @param {string} text
+ * @param {string[]} tokens
+ * @param {number} [contextChars] - characters of context on each side of the match
+ * @returns {{
+ *   segments: Array<{ text: string, highlighted: boolean }>,
+ *   truncatedStart: boolean,
+ *   truncatedEnd: boolean
+ * }}
+ */
+export function getSnippet(text, tokens, contextChars = 60) {
+    if (!text) {
+        return { segments: [{ text: '', highlighted: false }], truncatedStart: false, truncatedEnd: false };
+    }
+
+    const leadingSlice = () => {
+        const truncatedEnd = text.length > contextChars * 2;
+        return {
+            segments: [{ text: text.slice(0, contextChars * 2), highlighted: false }],
+            truncatedStart: false,
+            truncatedEnd,
+        };
+    };
+
+    if (tokens.length === 0) {
+        return leadingSlice();
+    }
+
+    const pattern = new RegExp(`\\b(${tokens.map(escapeRegex).join('|')})\\b`, 'i');
+    const match = pattern.exec(text);
+
+    if (!match) {
+        return leadingSlice();
+    }
+
+    const start = Math.max(0, match.index - contextChars);
+    const end = Math.min(text.length, match.index + match[0].length + contextChars);
+
+    return {
+        segments: highlightSegments(text.slice(start, end), tokens),
+        truncatedStart: start > 0,
+        truncatedEnd: end < text.length,
+    };
+}
