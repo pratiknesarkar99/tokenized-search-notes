@@ -36,6 +36,15 @@ button:hover {
     display: none;
 }
 
+.search-input {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 14px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    margin-bottom: 16px;
+}
+
 .note-item {
     background: white;
     border: 1px solid #e5e5e5;
