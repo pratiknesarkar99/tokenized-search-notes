@@ -355,17 +355,75 @@ button:hover {
     border-radius: 6px;
 }
 
-.body-input {
+.body-input-wrapper {
     flex: 1 1 auto;
     min-height: 0;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+/* Shared metrics between .body-input and .body-highlight-overlay are what
+   keep the invisible textarea's caret aligned with the visible highlighted
+   text underneath it in overlay mode, box-sizing, padding, border,
+   font, line-height, and white-space must match exactly on both. */
+.body-input {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 8px;
     font-size: 14px;
+    font-family: inherit;
+    line-height: 1.6;
+    border-radius: 6px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    resize: none;
+    /* height now comes from the flex layout, manual resize would fight it */
+}
+
+/* Plain mode (no active search, no overlay): a normal, fully opaque textarea. */
+.body-input:not(.body-input-overlay-mode) {
+    flex: 1 1 auto;
+    min-height: 0;
+    border: 1px solid #ddd;
+    background: white;
+    color: #1a1a1a;
+    overflow-y: auto;
+}
+
+/* Overlay mode: this textarea is the top, interactive layer, invisible
+   except for its caret. The visibly-highlighted text comes from
+   .body-highlight-overlay sitting beneath it. */
+.body-input-overlay-mode {
+    position: absolute;
+    inset: 0;
+    border: none;
+    background: transparent;
+    color: transparent;
+    caret-color: #1a1a1a;
+    overflow-y: auto;
+    z-index: 2;
+}
+
+.body-highlight-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    box-sizing: border-box;
+    margin: 0;
     padding: 8px;
     border: 1px solid #ddd;
     border-radius: 6px;
+    background: white;
+    font-size: 14px;
     font-family: inherit;
-    resize: none;
-    /* height now comes from the flex layout, manual resize would fight it */
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-wrap: break-word;
     overflow-y: auto;
+    color: #1a1a1a;
+    pointer-events: none;
+    /* clicks/typing go to the textarea on top, not this layer */
 }
 
 .viewer-title {

@@ -65,6 +65,7 @@ function refreshList() {
             editingNoteId = id;
             viewMode = activeQuery.trim() !== '' ? 'preview' : 'edit';
             showActiveNote();
+            refreshList();
         },
         onDelete: (id) => {
             deleteNote(id);
@@ -101,7 +102,7 @@ function showActiveNote() {
         return;
     }
 
-    renderNoteEditor(editorContainer, noteBeingEdited, {
+    renderNoteEditor(editorContainer, noteBeingEdited, tokenize(activeQuery), {
         onSave: ({ title, body }) => {
             if (!isValidNote({ title, body })) {
                 alert('A note needs a title.');
